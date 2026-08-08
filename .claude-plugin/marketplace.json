@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "open-agents",
+  "owner": {
+    "name": "AlphaFiTech"
+  },
+  "plugins": [
+    {
+      "name": "sui-move-auditor",
+      "source": "./plugins/sui-move-auditor",
+      "description": "Zero-trust adversarial security auditor for Sui Move smart contracts.",
+      "category": "security"
+    }
+  ]
+}

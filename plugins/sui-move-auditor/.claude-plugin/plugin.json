@@ -1,0 +1,9 @@
+{
+  "name": "sui-move-auditor",
+  "version": "1.0.0",
+  "description": "Zero-trust adversarial security auditor for Sui Move smart contracts.",
+  "author": {
+    "name": "Pankaj Jangid"
+  },
+  "license": "MIT"
+}
