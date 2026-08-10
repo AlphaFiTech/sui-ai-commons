@@ -6,11 +6,11 @@ Open an issue or a pull request against `main`. Changes to agent methodology sho
 
 ## How to propose a new agent
 
-This marketplace follows a **one-plugin-per-agent** policy: each agent ships as its own plugin directory `plugins/<agent-name>/` with its own `.claude-plugin/plugin.json` and `agents/` dir, and the installed agent surfaces as `<agent-name>:<agent-name>`. New agents must be self-contained under their plugin directory — no cross-plugin file references, because install caches are copied per-plugin.
+Every agent is added **inside the single umbrella plugin** `plugins/open-agents/`: one `agents/<agent>.md` definition plus an optional `agents/<agent>/` companion directory — never as a new `plugins/<agent>/` directory. The installed agent surfaces as `open-agents:<agent>`. Agents must be self-contained under the plugin directory (install cache copies exclude traversal targets), and any companion-dir reference in agent content must be `${CLAUDE_PLUGIN_ROOT}`-prefixed (`${CLAUDE_PLUGIN_ROOT}/agents/<agent>/…` — the pattern the auditor uses).
 
 ## Versioning rule (mandatory)
 
-Any change to plugin content MUST bump that plugin's `plugin.json` `version` — otherwise installed users stay on stale cached content indefinitely (plugin updates only flow on a version change). Patch/minor/major is at the author's judgment; the bump itself is non-negotiable.
+Any change to plugin content — **any agent's** — MUST bump the single umbrella `plugin.json` `version` (`plugins/open-agents/.claude-plugin/plugin.json`) — otherwise installed users stay on stale cached content indefinitely (plugin updates only flow on a version change). Patch/minor/major is at the author's judgment; the bump itself is non-negotiable. A consequence of the umbrella: a bump ships all agents together — there is no per-agent versioning. Likewise mandatory: the `renames` map in `.claude-plugin/marketplace.json` is append-only history and must never be pruned — future plugin renames extend the map.
 
 ## Rulesets note
 
