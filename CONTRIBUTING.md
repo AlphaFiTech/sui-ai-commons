@@ -22,6 +22,10 @@ Nothing beyond agents ships this cycle; these are the conventions future skills 
 
 Any change to plugin content — any agent's, and in future any skill's or tool's — MUST bump the single umbrella `plugin.json` `version` (`plugins/sui-ai/.claude-plugin/plugin.json`) — otherwise installed users stay on stale cached content indefinitely (plugin updates only flow on a version change). Patch/minor/major is at the author's judgment; the bump itself is non-negotiable. A consequence of the umbrella: a bump ships all components together — there is no per-component versioning. Likewise mandatory: the `renames` map in `.claude-plugin/marketplace.json` is append-only history and must never be pruned — future plugin renames extend the chain.
 
+## Maintainer operations note
+
+This repository was renamed from `AlphaFiTech/open-agents` to `AlphaFiTech/sui-ai-commons` (and the umbrella plugin `open-agents` → `sui-ai` — recorded in the append-only `renames` map above). A repository named `AlphaFiTech/open-agents` must **never be created**: GitHub's rename redirect — which keeps old links and any legacy plugin registrations working — dies the moment the old name is reused.
+
 ## Rulesets note
 
 AlphaFiTech's standard branch rulesets are intentionally not applied to this repo this cycle; applying them is a separate, future decision.
