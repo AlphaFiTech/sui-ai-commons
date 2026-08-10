@@ -1,0 +1,9 @@
+{
+  "name": "open-agents",
+  "version": "1.0.0",
+  "description": "AlphaFi's open agents umbrella plugin — currently the sui-move-auditor zero-trust security auditor for Sui Move smart contracts.",
+  "author": {
+    "name": "Pankaj Jangid"
+  },
+  "license": "MIT"
+}

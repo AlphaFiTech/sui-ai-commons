@@ -4,11 +4,14 @@
   "owner": {
     "name": "AlphaFiTech"
   },
+  "renames": {
+    "sui-move-auditor": "open-agents"
+  },
   "plugins": [
     {
-      "name": "sui-move-auditor",
-      "source": "./plugins/sui-move-auditor",
-      "description": "Zero-trust adversarial security auditor for Sui Move smart contracts.",
+      "name": "open-agents",
+      "source": "./plugins/open-agents",
+      "description": "AlphaFi's open agents umbrella plugin — currently the sui-move-auditor zero-trust security auditor for Sui Move smart contracts.",
       "category": "security"
     }
   ]
