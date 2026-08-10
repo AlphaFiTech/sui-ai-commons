@@ -1,17 +1,18 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "open-agents",
+  "name": "sui-ai-commons",
   "owner": {
     "name": "AlphaFiTech"
   },
   "renames": {
-    "sui-move-auditor": "open-agents"
+    "sui-move-auditor": "open-agents",
+    "open-agents": "sui-ai"
   },
   "plugins": [
     {
-      "name": "open-agents",
-      "source": "./plugins/open-agents",
-      "description": "AlphaFi's open agents umbrella plugin — currently the sui-move-auditor zero-trust security auditor for Sui Move smart contracts.",
+      "name": "sui-ai",
+      "source": "./plugins/sui-ai",
+      "description": "AI commons umbrella plugin for the Sui community — currently the sui-move-auditor zero-trust security auditor for Sui Move smart contracts.",
       "category": "security"
     }
   ]

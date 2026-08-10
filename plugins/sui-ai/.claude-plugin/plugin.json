@@ -1,0 +1,9 @@
+{
+  "name": "sui-ai",
+  "version": "2.0.0",
+  "description": "AI commons umbrella plugin for the Sui community — agents, skills, and tools for Sui development. Currently ships the sui-move-auditor zero-trust security auditor for Sui Move smart contracts.",
+  "author": {
+    "name": "Pankaj Jangid"
+  },
+  "license": "MIT"
+}
