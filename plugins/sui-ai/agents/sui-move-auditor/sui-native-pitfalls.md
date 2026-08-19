@@ -149,9 +149,9 @@ disassemble`) and apply the same checks; cite by module, basic-block label, inst
   `#[spec_only] public fun` verifier helper disassembles out of the deployed module as a live
   `public` function. Because it visually rhymes with `#[test_only]`, developers assume the same
   "stripped in prod" guarantee — so a verifier-only helper written to drain/mint/bypass
-  authorization for proof purposes ships as a live, usually public, unauthenticated entry point (the
-  publicly disclosed "$300K back door" class, pika/@pikapikasui, 2026-08-19). Detection: grep
-  `#[spec_only]` and any `use prover::` imports — ANY `#[spec_only]` on a function/module is a red
+  authorization for proof purposes ships as a live, usually public, unauthenticated function (the
+  publicly disclosed "$300K back door" class, pika/@pikapikasui, 2026-08-19).
+  Detection: grep `#[spec_only]` and any `use prover::` imports — ANY `#[spec_only]` on a function/module is a red
   flag, and a privileged unauthenticated body (drain/mint/set-admin/supply-mut) marked `#[spec_only]`
   is **CRITICAL**; an `unknown attribute` (W02018) warning on a security-relevant item is the tell
   that the marker is inert, so treat it as a finding, not noise (`warnings = "allow"` or an un-gated
