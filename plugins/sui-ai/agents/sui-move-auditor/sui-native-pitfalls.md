@@ -139,6 +139,27 @@ disassemble`) and apply the same checks; cite by module, basic-block label, inst
   test helper ships as an unauthenticated mint/admin bypass. The *shape* is the signal: walk every
   public/entry fn whose name (`*_for_testing`, `mint_for_testing`, debug setters) or whose body
   (privileged action, no authorization) is test scaffolding. Applies to source review too.
+- **`#[spec_only]` is NOT compiled out — it ships to production.** `#[test_only]`/`#[test]` are
+  *built-in* attributes the standard toolchain strips; `#[spec_only]` is not built-in at all — it is
+  meaningful **only to the `sui-prover` toolchain**, and `sui move build` / `sui client publish` do
+  **not** run the prover. The base compiler treats it as an *unknown attribute*
+  (`warning[W02018]: Unknown attribute 'spec_only'. Custom attributes must be wrapped in 'ext'`) and
+  compiles the annotated function into the published bytecode unchanged — `#[ext(...)]` wrapping only
+  silences that warning; no custom attribute ever strips code. Verified on sui 1.76.1: a
+  `#[spec_only] public fun` verifier helper disassembles out of the deployed module as a live
+  `public` function. Because it visually rhymes with `#[test_only]`, developers assume the same
+  "stripped in prod" guarantee — so a verifier-only helper written to drain/mint/bypass
+  authorization for proof purposes ships as a live, usually public, unauthenticated entry point (the
+  publicly disclosed "$300K back door" class, pika/@pikapikasui, 2026-08-19). Detection: grep
+  `#[spec_only]` and any `use prover::` imports — ANY `#[spec_only]` on a function/module is a red
+  flag, and a privileged unauthenticated body (drain/mint/set-admin/supply-mut) marked `#[spec_only]`
+  is **CRITICAL**; an `unknown attribute` (W02018) warning on a security-relevant item is the tell
+  that the marker is inert, so treat it as a finding, not noise (`warnings = "allow"` or an un-gated
+  build hides it entirely); and unlike `#[test_only]`, spec-only code IS present in deployed
+  bytecode, so walk public/entry fns for prover-helper shapes (`*_spec`, `spec_*`, `prove`, `ghost`,
+  `axiom`) with the same suspicion as test-helper shapes. Correct remediation keeps prover specs in a
+  separate spec-only module/package that is never published (or a build step enforcing the
+  separation) — never the attribute alone.
 - **Guard-completeness idiom:** verify an authorization guard is a 3-part opcode sequence (push
   field/getter → `Eq/Lt/Gt` → `BrFalse` to `LdConst` + `Abort`) present on *every* basic block
   reaching the privileged `Call`. A guard elsewhere in the module does not count.
