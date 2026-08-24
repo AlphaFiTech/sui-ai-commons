@@ -28,4 +28,4 @@ This repository was renamed from `AlphaFiTech/open-agents` to `AlphaFiTech/sui-a
 
 ## Rulesets note
 
-AlphaFiTech's standard branch rulesets are intentionally not applied to this repo this cycle; applying them is a separate, future decision.
+AlphaFiTech's standard branch rulesets are applied to this repository (since 2026-08-18): changes to `main` go through a pull request, and new branches must use a `feature/`, `bugfix/`, `hotfix/`, or `chore/` prefix. Open PRs from a prefix-compliant branch; maintainers merge after review (repository admins may complete a merge when no second reviewer is available).
