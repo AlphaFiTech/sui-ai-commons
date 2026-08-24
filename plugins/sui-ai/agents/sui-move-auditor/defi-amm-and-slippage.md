@@ -65,6 +65,21 @@ and forgotten everywhere else.
 - **Retroactive fee-rate change on unclaimed LP fees.** `set_protocol_fee` without harvesting
   first re-prices already-earned fees at the new rate.
 
+## Order books & matching loops
+
+- **Per-call visitation cap on every collection walk.** Loops over orders, ticks, or positions
+  — view paths *and* fund-moving paths (matching, settlement, sweeps) — need a per-call cap: an
+  uncapped walk is a computation DoS on a book anyone can grow. But a cap changes semantics —
+  the call may stop early — so the operation must be resumable, not silently partial.
+- **Cap-fired vs natural stop are different postconditions.** When the cap fires while the book
+  is *still crossing*, the unfilled remainder must be **returned to the caller, never rested** as
+  a resting order — a still-marketable remainder at its limit price is a free option for
+  counterparties and corrupts book state. Post-loop handling must branch on *why* it stopped.
+- **Taker exposure bounded on both sides, by construction.** The buy-side budget must be
+  **split off before matching begins**, mirroring the sell side where the input coin itself is
+  the bound. Bounding one side structurally and the other only with post-hoc checks is an
+  asymmetry that lets worst-case exposure exceed the caller's stated budget.
+
 ## Auctions
 
 - **Self-bidding resets the timer.** A position owner bids on their own liquidation auction to

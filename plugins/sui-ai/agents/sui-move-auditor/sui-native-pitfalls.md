@@ -64,6 +64,48 @@ Several have permanent-brick or silent-auth-bypass failure modes with no EVM ana
   before accept + insert after; nullifier derived from a private input, not submitter-controlled
   public input; table is shared, not owned.
 
+## PTB deliverability & production reachability
+
+The platform's transfer/ability rules, not the source text, decide whether a flow is usable in a
+real PTB. Verify deliverability against those rules — and verify every proposed fix compiles.
+
+- **`key`-only objects returned by value are undeliverable.** A struct with `key` but not `store`
+  cannot be moved by the PTB `TransferObjects` command — a public function returning one by value
+  leaves the caller no legal way to deliver it. The fix shape is self-custody in the callee
+  (`transfer::transfer(obj, ctx.sender())`-style); never a caller-suppliable recipient parameter
+  for an authority object, which converts a deliverability bug into authority redirection.
+- **Non-`#[test_only]` constructor/destructor per publicly consumed struct.** For every
+  hot-potato/capability struct consumed or returned by a public entry point, a production
+  constructor/destructor must exist *and be reachable through the integrator-facing facade*. A
+  flow whose only builders are `#[test_only]` is inert in production while the whole test suite
+  stays green — tests enter through backdoors that never ship.
+- **Hot-potato completion functions must not be publicly callable** when public completion lets
+  anyone burn a pending action without performing the intended delivery — completion belongs at
+  `public(package)`, invoked only by the module that verified the work.
+- **`dynamic_object_field` values require `key + store`.** A `key`-only object cannot be attached
+  as a dynamic object field — a fix that "just stores it under the parent" will not compile.
+- **`transfer::transfer` is module-restricted.** It works only on types defined in the calling
+  module, so a generic `redeem<T>` transferring foreign `T` cannot compile. Verify every proposed
+  fix **by compile probe, not abstract reasoning** — ability and visibility rules routinely
+  invalidate fixes that read fine on paper.
+- **Non-drop values must be consumable in a real PTB.** A public function returning a non-drop
+  value (e.g. an `Option<T>` holding a resource) with no PTB-legal consumer strands the value and
+  aborts the transaction — trace every non-drop return to a callable consumer.
+
+## Module boundaries & visibility
+
+- **Cross-module writes need an access point in the defining module.** Struct fields can only be
+  mutated, and resources minted or transferred, where they are defined — a fix that has module B
+  directly touching module A's internals cannot compile. The correct shape is a
+  `public(package)` access point added in the *defining* module.
+- **Two-way `use` cycles are infeasible.** The compiler rejects dependency cycles outright —
+  reject any proposed fix that introduces one, and verify fix proposals by compile probe rather
+  than by reasoning about what "should" work.
+- **Externally-depended-on accessors must exist at the required visibility.** Walk the
+  integration surface (SDKs, sibling packages, documented integrators) and confirm every accessor
+  they rely on is `public` — merely `public(package)` or absent breaks integrators silently at
+  *their* compile time, not the protocol's.
+
 ## Hard platform limits (non-gas, permanent-brick)
 
 - **Per-transaction dynamic-field child-object cache ceiling.** The object runtime caps the
@@ -80,6 +122,10 @@ Several have permanent-brick or silent-auth-bypass failure modes with no EVM ana
   it aborts — a protocol constant, not a gas budget. Especially a `vector` redundant with an
   existing `Table` (pure liability, removable). Use `Table`/`Bag`/`TableVec` or events.
 - Per-transaction created/transferred/deleted object-ID counts are separately capped.
+- **Per-struct field-count protocol limit — surfaces only at publish.** Neither `sui move build`
+  nor `sui move test` enforces it, so a struct near the limit is a latent publish-blocker for
+  every future upgrade that adds a field. The real gate is a network publish dry-run; local
+  build/test green is not evidence of publishability.
 
 ## Standard-object & framework misuse
 
@@ -109,6 +155,13 @@ Several have permanent-brick or silent-auth-bypass failure modes with no EVM ana
   a regulated-coin `transfer` is a false positive (validators block sending pre-execution). The
   *real* risk is the ~24h epoch gap for *receiving* — burn-on-source/mint-on-destination can
   strand funds if the recipient is blocked between epochs.
+- **Dynamic-field child-id derivation must use the correct parent UID.** A `Table`/`Bag` stored
+  inside an outer struct has its *own* UID — deriving child ids from the outer struct's UID (or
+  vice versa) reads and writes a different key space and silently misses every entry. Check each
+  `derive_id`/child lookup against which UID actually parents the field.
+- **Type-name keys need the canonical zero-padded form.** Type-name strings used as lookup keys
+  must be canonicalized (zero-padded addresses); mixed canonical/non-canonical producers make one
+  writer's entries invisible to the other's lookups.
 
 ## Fixed-point library specifics
 

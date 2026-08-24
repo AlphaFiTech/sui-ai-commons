@@ -90,11 +90,31 @@ reportable regardless: **logic bugs inside admin functions**, and **blast-radius
 assume a privileged key is compromised: can it drain everything in one transaction, and are there
 timelocks or limits? (This qualifies the agent's default "admin can drain = CRITICAL".)
 
+## Adjudicated acceptances (do not re-litigate)
+
+Before filing a design-level finding, check the project's docs and decision records for a **prior
+adjudicated acceptance** of that exact design — an explicit, recorded decision to accept the
+tradeoff. On a match, report the finding as **Acknowledged, citing the prior adjudication** — do
+not re-litigate the decision or push remediation unless the user re-raises it. This extends the
+declared-trusted-roles posture above: a risk the project has consciously examined and accepted is
+a documented tradeoff, not an open finding.
+
 ## Discovery techniques worth running before you conclude coverage
 
 - **Asymmetry diff.** Open counterpart pairs side by side — deposit/withdraw, mint/burn,
   borrow/repay, stake/unstake, and user-vs-admin versions — and diff line by line. A check present
   in one and missing in its twin is the highest-signal finding; admin flows are under-tested.
+- **Twin categories the asymmetry diff must sweep:**
+  - *Custody/mode-variant twins* — the same operation implemented once per custody mode or
+    configuration variant (`_local`/`_external`-style pairs): diff the guards across all variants.
+  - *Per-type membership checks* — a guard implemented per asset/type: confirm every registered
+    type got it, not just the first.
+  - *Incremental-rollout sweeps* — when history shows a guard was added one function per round,
+    enumerate the whole family and check the laggards; partial rollouts are the rule, not the
+    exception.
+  - *SDK/facade twin coverage* — when an SDK or facade fronts multiple underlying paths, confirm
+    it covers *every* twin, not only the default path — integrators inherit the facade's blind
+    spots.
 - **"Pattern everywhere except one place."** If `update_rewards`-before-balance-change appears in
   9/10 functions, the 10th is the bug. Enumerate occurrences, hunt the outlier.
 - **Look for what's missing, by name:** solvency check after withdrawal, existence check before a
@@ -140,3 +160,40 @@ timelocks or limits? (This qualifies the agent's default "admin can drain = CRIT
   (concrete field values); what is the exact assertion (a value comparison, not `assert!(worked)`).
   After a fixed number of failed attempts, conclude false-positive with documented reasoning rather
   than forcing it.
+- **Fixture realism.** Fixtures using 0-decimal prices or 1.0 exchange rates mask entire bug
+  classes: decimal-scale confusion is invisible at scale 1, and prune/round conditions are
+  untestable at rate 1.0. Demand realistic decimals and non-unit rates before accepting "tests
+  pass" as evidence for scale- or rate-sensitive logic.
+
+## Test-harness fidelity (`test_scenario` ≠ production)
+
+- **`test_scenario` does not enforce native transfer-ability rules.** A harness more permissive
+  than production gives false confidence that a flow is deliverable — a transfer that works in the
+  scenario can be undeliverable in a real PTB. Cross-check against "PTB deliverability &
+  production reachability" in `sui-native-pitfalls.md`.
+- **One abort per `#[test]`.** A single test cannot witness two aborts — do not read test *counts*
+  as scenario coverage.
+- **Events do not cross `next_tx` boundaries.** Place event assertions in the emitting
+  transaction's scope, or they silently assert on nothing.
+- **Repeated `begin()` with the same sender collides.** Harness-level artifacts can masquerade as
+  protocol behavior — rule out the harness before reporting.
+
+## Green-test masking & inversion
+
+- **A pre-existing green test that fails after a fix defaults to the hypothesis that the old test
+  encoded the bug** — it certified wrong behavior as correct. Inverting the test is the expected
+  outcome, not a red flag; the finding's severity follows the behavior the old test enshrined, not
+  the size of the code change.
+- **`#[expected_failure]` tests silently re-satisfied by an unrelated newly-added abort.** After
+  any fix that adds an abort, re-map each expected-failure test to the abort that now fires — a
+  test passing for the wrong reason masks a regression.
+- **Audit sibling tests once one masked test is found.** Masking is a family property: the same
+  fixture or assumption that masked one test usually masks its neighbors.
+
+## Auditing the project's own verification claims
+
+The target project's verification, plan, and spec documents are **audit surface, not evidence**.
+Independently re-run every cited command output — "grep returns zero", "zero unchecked boxes",
+call-site counts — before relying on it. A false "already verified" claim in a permanent record is
+**itself a finding, at the severity of the claim it misrepresents**: the record will keep
+certifying the gap long after this audit ends.

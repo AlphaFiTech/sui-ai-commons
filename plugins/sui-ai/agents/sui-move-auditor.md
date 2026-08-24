@@ -55,6 +55,8 @@ the ones that apply:
 - **Candidate ≠ finding.** A grep hit is a candidate; a grep miss is not proof of safety (most
   bugs are *missing* checks). Every finding passes the evidence and feasibility gates before it
   is reported.
+- **Twin-function rule.** Check every guard in the function's twins — sibling paths to the same economic
+  outcome (mode variants, inverse accessors, facades); a one-twin-only guard is the highest-signal finding — see `verification-and-false-positives.md`.
 
 ---
 
@@ -142,6 +144,9 @@ List and analyze EVERY involved party. For each one, simulate them going rogue.
   vs. analyzed M). For each, ask whether unprivileged users can create state that blocks it —
   pending withdrawals blocking migration, non-zero balances blocking cleanup, table entries
   preventing deletion. Any user-griefable precondition on a critical admin path is ≥ Medium.
+- **Gate-liveness enumeration:** For every collective gate of the form "zero outstanding X before
+  action Y", enumerate every entry point that can create or leave a nonzero-but-worthless X (dust,
+  zombie counters, empty entries) — each needs a permissionless, bounded-cost remedy, or the gate is user-griefable.
 
 ### 2.4 User / Caller / Manager Fraud Simulation
 - Can a user pass crafted inputs to overflow/underflow arithmetic?
@@ -185,6 +190,8 @@ This is the highest priority. No funds must ever be leaked, drained, or misappro
 - **Receipt Forgery:** Can an arbitrary external caller mint/construct a valid receipt? Check that receipt-producing functions are capability-gated, package-scoped, or structurally bound to trusted state. Treat "caller can construct a valid receipt with arbitrary payload" as **CRITICAL**.
 - **Receipt Consumption:** Do receipt-consuming functions validate ALL of: `strategy_id`, `adapter_id`, `pool_id`, asset types, and object binding — not only shape?
 - **Test-only leaks:** Verify `#[test_only]` receipt constructors are properly annotated and cannot be called in production.
+- **Production reachability (Test-only inverse):** every hot-potato/capability struct consumed or returned by a public entry point needs a non-`#[test_only]` constructor/destructor reachable in production —
+  green tests passing through `#[test_only]` backdoors prove nothing about reachability (deliverability mechanics: `sui-native-pitfalls.md`).
 
 #### Hot Potato Receipt Validation Example
 ```move
@@ -236,6 +243,9 @@ public fun store_position<T: key + store, AssetA, AssetB>(
 - **Transfer-to-Object Attacks:** Can someone send unwanted objects to your shared objects via `transfer::public_transfer` to an object address?
 - **Object Wrapping Attacks:** Can wrapping an object hide it from cleanup/close logic?
 - **Object Substitution:** Borrow/return patterns must record the borrowed object ID in a receipt and validate it on return.
+- **Owner-of-record divergence:** when a transferable receipt/position object authorizes actions and a
+  separate mechanism credits its proceeds, both paths must resolve the same owner-of-record after a
+  transfer completes — diff the two owner reads; divergence pays a stale owner or lets the old owner keep acting.
 
 #### Object Substitution Attack Example
 ```move
@@ -272,6 +282,8 @@ public fun return_position<T: key + store>(
 - For strategy modules: check raw asset balances, lending positions, LP positions, debt positions, and withdrawal requests separately
 - If removal / close / cleanup logic ignores one storage family, flag it
 - **Zero-balance pollution:** Empty `Balance<T>` entries added to a `Bag` can permanently block cleanup / `finalize_close`.
+- **Append-only liveness pruning:** an append-only collection used as a liveness precondition — an
+  emptiness/zero-count gate on close, migration, or a collective action — needs a verified pruning path, or the gate becomes permanently unsatisfiable.
 
 #### Dynamic Field Pollution Example
 ```move
@@ -372,6 +384,8 @@ For fee and withdrawal systems, check retained fees, minted shares, HWM updates,
   width.
 - **Narrowing casts** (u128→u64, u64→u8) need `assert!(value <= MAX_TYPE)`. Watch for **double
   scaling** — an index applied twice in one calculation.
+- **Price-to-u64 casts:** prove every oracle/computed-price cast into u64 (or narrower) safe at
+  realistic prices for real token decimals; choose the failure mode deliberately — graceful degrade vs a permanent abort freezing every dependent path.
 
 ### 5.3a High-signal correctness greps (cheap, high severity)
 
@@ -394,6 +408,11 @@ For fee and withdrawal systems, check retained fees, minted shares, HWM updates,
   never mix into arithmetic with raw token amounts.
 - **`swap_remove` on ordered structures.** `vector`/`table_vec::swap_remove` teleports the last
   element into the removed slot — fine for sets, corrupts FIFO queues / "first N depositors" logic.
+- **Decimal-scale audit.** Arithmetic or comparisons mixing USD-scaled values with raw token units
+  must carry the `10^decimals` factor explicitly, and one canonical price representation must hold
+  protocol-wide — flag dual forms (per-whole-token vs per-base-unit) and formulas whose dimensional analysis does not close.
+- **Exact-equality payment asserts.** `assert!(payment == required)` on caller-supplied payments is
+  griefable (the required amount can move mid-flight; integrator rounding breaks exactness) — prefer `>=` plus refund of the excess.
 
 ### 5.4 Internal-Ledger Self-Transfer
 
@@ -449,6 +468,8 @@ public fun withdraw<T>(
 - [ ] **[CRITICAL]** Objects with `store` returned to callers by value must have a receipt enforcing their return
 - [ ] Hot-potato receipt structs have NO abilities (no key, store, copy, drop)
 - [ ] Object deletion (`delete`) is properly gated and cleans up all dynamic fields
+- [ ] **PTB deliverability:** a `key`-only (non-`store`) object returned by value cannot be delivered
+      by `TransferObjects` — verify each returned object is deliverable or callee-self-custodied (`sui-native-pitfalls.md`)
 
 ### 6.3 Access Control & Initialization
 - [ ] `initialize` functions are `public(package)` — not `public` or `entry`
@@ -473,6 +494,12 @@ public fun withdraw<T>(
       `Pool` with fabricated reserves)
 - [ ] **Randomness source** is `sui::random::Random`, never `tx_context::digest` / `uid_to_bytes` /
       `epoch` / `epoch_timestamp_ms` for any winner/rarity/shuffle logic (see `sui-native-pitfalls.md`)
+- [ ] **Capability squatting on permissionless creation:** for every permissionless "create X" that
+      mints an admin/manager cap over X, check (i) who receives the cap — caller-picked recipients
+      enable squatting on canonical names/assets; (ii) creation params carry formula-derived
+      ceilings, not mere non-zero checks; (iii) "creation is cap-gated" and "the cap-holder cannot misuse X" are two independent findings
+- [ ] **`@0x0` parity:** recipient checks (`@0x0`, unreachable/reserved addresses) must appear with
+      parity across sibling mint/reissue/transfer functions — checked in one sibling, absent in another is a finding even when each "works"
 
 ### 6.4 Balance & Token Safety
 - [ ] No minting paths exist after genesis
@@ -484,6 +511,10 @@ public fun withdraw<T>(
 - [ ] Allocation sums verified: individual allocations cannot exceed total pool
 - [ ] u128 intermediaries prevent overflow on multiplication
 - [ ] Multiply-before-divide consistent to minimize rounding loss
+- [ ] **Zero-payout guard:** when a computed payout floors to zero while the counterparty burn/debit
+      still applies in full, abort (or skip symmetrically) — never burn/debit against a zero credit
+- [ ] **Per-side zero guards:** multi-output payouts guard each output independently (`a == 0` and
+      `b == 0` each handled) — never only as a conjunction (`a == 0 && b == 0`), which lets one-sided zero flows through
 
 ### 6.5 Time & Schedule Safety
 - [ ] `Clock` passed as `&Clock` (immutable ref) — never `&mut Clock`
@@ -538,6 +569,8 @@ All asserts happen BEFORE state mutation.
 - [ ] Event struct has `has copy, drop`
 - [ ] All fund movements emit events
 - [ ] No sensitive data (private keys, seeds) in events
+- [ ] A no-op call (zero-amount, already-satisfied) must not emit an event indistinguishable from a real action's — indexers and monitors treat events as facts
+- [ ] Duplicate event types — structurally-identical events defined in two modules are distinct types on-chain; single-type-name indexer subscriptions silently miss one
 
 ### 6.12 Error Code Hygiene
 - [ ] All error codes unique within each module
@@ -545,6 +578,7 @@ All asserts happen BEFORE state mutation.
 - [ ] Every `assert!()` uses a named error constant
 - [ ] Error codes match the condition they guard
 - [ ] Error code ranges non-overlapping across adapter modules
+- [ ] Paths that can abort inside native table/object primitives (missing key, duplicate add) pre-check and abort with the module's own named error, never a bare native abort code
 
 ### 6.13 Generic Type Parameter Safety
 - [ ] Wrong type `T` cannot confuse accounting
@@ -552,6 +586,9 @@ All asserts happen BEFORE state mutation.
 - [ ] `Balance<FakeToken>` cannot be stored where a specific token is expected
 - [ ] `TypeName` comparisons distinguish asset types correctly
 - [ ] Generic ability constraints (`key`, `store`, `copy`, `drop`) are sufficient
+- [ ] **OTW uniqueness:** a phantom type distinguishing otherwise-identical resources — especially one
+      backing a `TreasuryCap`-like authority — is unique only if a genuine one-time witness is verified;
+      a shared generic base is NOT uniqueness (a second `create_X<USDC>` mints a fungible twin cap); a bare `T: drop` bound on your own mint path does not enforce OTW-ness (the framework's `create_currency` verifies it at runtime; custom constructors must too)
 
 ### 6.14 Package Upgrade Safety
 - [ ] `UpgradeCap` policy (compatible / additive / dep-only / immutable) matches security needs
@@ -563,22 +600,28 @@ All asserts happen BEFORE state mutation.
 - [ ] Migration function (if any) cannot be exploited during upgrade
 - [ ] **Stale-package attack surface:** every prior published version stays executable forever. A
       shared object needs a `version: u64` field **and** an `assert!(obj.version == CURRENT)` on
-      *every* public/entry/`public(package)` function — including read-only getters — or the old,
-      buggy code path remains a live drain even after a fix ships (Scallop 2026, ~150K SUI).
-      Enumerate shared objects → confirm the version field → grep every `&`/`&mut T` fn for the
-      assert → confirm migration bumps it. A constructor bug fixed in v2 still drains via the v1
-      entry point unless gated — critical for reward-checkpoint constructors (see
-      `defi-staking-and-rewards.md`).
+      *every* state-mutating public/entry/`public(package)` function — or the old, buggy code path
+      remains a live drain even after a fix ships (Scallop 2026, ~150K SUI). For read-only views,
+      check that a deliberate, documented choice was made and flag whichever failure mode applies:
+      unguarded views feeding stale readers (a stale-package drain surface), or guarded views
+      bricking clients mid-migration — neither is the universal default. Enumerate shared objects →
+      confirm the version field → grep every `&`/`&mut T` fn for the assert → confirm migration
+      bumps it. A constructor bug fixed in v2 still drains via the v1 entry point unless gated —
+      critical for reward-checkpoint constructors (see `defi-staking-and-rewards.md`).
 - [ ] **Forgotten post-upgrade initializer:** `init` never re-runs on upgrade, so V2 singletons/
       state need their own gated initializer — a forgotten one can be front-run and claimed
 - [ ] Verify deployed bytecode matches reviewed source; prefer MVR / pinned `Move.lock` revisions
       over floating git deps (see `sui-native-pitfalls.md` → deployed-package review)
+- [ ] Migration/`update_version` validates its target against the package's real `CURRENT_VERSION`
+      (an unbounded target bricks every version-gated function) and is exempt from its own version guard — else migration can never run
 
 ### 6.15 Dependency Trust
 - [ ] External packages pinned to specific published versions in `Move.toml`
 - [ ] Dependency upgrades cannot silently change adapter behavior
 - [ ] External type imports verified (e.g., `Pool<A,B>` from real Cetus package)
 - [ ] One-Time Witness (OTW) pattern used correctly for token creation
+- [ ] Every accessor an integration depends on (documented or observed) exists at the required visibility
+      — `public` where external packages call it; `public(package)` or absent is an integration-breaking gap (audit the dependency direction too)
 
 ### 6.16 Gas & Computation DoS
 - [ ] No unbounded loops over `Table` / `VecSet`
@@ -595,6 +638,8 @@ All asserts happen BEFORE state mutation.
       struct is stored inline; permissionless appends eventually make *every* write to the object
       abort (a protocol constant, not a gas budget). Flag any inline collection redundant with an
       existing `Table` — use `Table`/`Bag`/`TableVec` or events instead.
+- [ ] **Cap fired ≠ natural stop:** a visitation cap added to any loop makes "cap fired" and "natural stop"
+      different postconditions — state decisions keyed on "loop stopped" must branch on *why*; mechanism in `defi-amm-and-slippage.md`
 
 ---
 
